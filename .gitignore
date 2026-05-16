@@ -21,6 +21,25 @@ env/
 
 # FastAPI (если используете)
 .cache/
+
+# Секреты и переменные окружения
+.env
+.env.*
+!.env.example
+*.secret
+secrets/
+
+# Cloudflare credentials
+certbot-dns/cloudflare.ini
+cloudflared/credentials.json
+cloudflared/*.json
+
+# Let's Encrypt — генерируется при первом запуске certbot
+certbot-dns/conf/
+
+# Локальные данные хранилища
+storage/photos/*
+!storage/photos/.gitkeep
 frontend/static/picture/482df2af-3b35-4444-bbbe-6334a7d9dfdb.png
 frontend/static/picture/c29034e0-f71f-4422-aa03-f56a7bd610f4.jpg
 frontend/static/picture/d9e176c5-d170-49f4-a4ef-cd1958f5fe37.png

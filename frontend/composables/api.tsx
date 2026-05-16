@@ -1,6 +1,6 @@
 // api.ts
 import axios from 'axios'
-const baseURL = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://exhibitdes.ru').replace(/\/+$/, '');
+const baseURL = (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://rapidstream.ru').replace(/\/+$/, '');
 
 export const api = axios.create({
   baseURL: `${baseURL}/v2`,

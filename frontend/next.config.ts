@@ -13,7 +13,7 @@ const nextConfig = {
     remotePatterns: [
         {
             protocol: 'https',
-            hostname: 'exhibitdes.ru',
+            hostname: 'rapidstream.ru',
             pathname: '/picture/**',
         },
     ],
@@ -34,7 +34,7 @@ const nextConfig = {
         headers: [
           {
             key: "X-Forwarded-Host",
-            value: "exhibitdes.ru",
+            value: "rapidstream.ru",
           },
         ],
       },

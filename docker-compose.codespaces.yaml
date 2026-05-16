@@ -1,0 +1,107 @@
+version: "3.8"
+
+# Запуск в GitHub Codespaces без собственного домена.
+# Публичные HTTPS-URL даёт сам Codespaces для каждого проброшенного порта,
+# по шаблону: https://${CODESPACE_NAME}-<PORT>.app.github.dev
+#
+# nginx-proxy и certbot не нужны — Codespaces сам терминирует TLS.
+#
+# Перед запуском:
+#   1) Откройте репозиторий в Codespace.
+#   2) Скопируйте .env.example в .env (можно оставить значения по умолчанию).
+#   3) docker compose -f docker-compose.codespaces.yaml up --build -d
+#   4) Во вкладке "PORTS" в VSCode сделайте порты 3000 и 8000 публичными
+#      (правый клик по порту -> Port Visibility -> Public), иначе CORS-запросы
+#      из браузера к бэкенду не пройдут.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1423}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+      MYSQL_USER: ${MYSQL_USER:-user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1423}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-user}", "-p${MYSQL_PASSWORD:-1423}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --skip-log-bin
+      --log-slave-updates=OFF
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - photos_volume:/storage/photos
+    environment:
+      # pydantic-settings берёт значения из env vars, переопределяя backend/.env
+      SECRET_KEY: ${SECRET_KEY:-dev_secret_change_me_in_production_xxxxxxxxxxxxxxxx}
+      db_url: "mysql+aiomysql://${MYSQL_USER:-user}:${MYSQL_PASSWORD:-1423}@mysql:3306/${MYSQL_DATABASE:-test}"
+      # Разрешаем публичный URL фронтенда из Codespaces в CORS.
+      ALLOWED_ORIGINS: "https://${CODESPACE_NAME}-3000.app.github.dev"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+      args:
+        # NEXT_PUBLIC_* у Next.js баксается в бандл на этапе build,
+        # поэтому передаём публичный URL бэкенда из Codespaces именно как build-arg.
+        NEXT_PUBLIC_BASE_URL: "https://${CODESPACE_NAME}-8000.app.github.dev"
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - photos_volume:/app/public/picture:ro
+    environment:
+      NEXT_PUBLIC_BASE_URL: "https://${CODESPACE_NAME}-8000.app.github.dev"
+      PORT: 3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+  photos_volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/storage/photos
+
+networks:
+  app-network:
+    driver: bridge

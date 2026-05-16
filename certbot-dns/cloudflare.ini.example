@@ -1,0 +1,5 @@
+# Cloudflare API Token для DNS-01 challenge при выпуске SSL.
+# НЕ КОММИТЬ этот файл с реальным токеном!
+# Создайте новый токен здесь: https://dash.cloudflare.com/profile/api-tokens
+# Права на токен: Zone -> Zone:Read, Zone -> DNS:Edit, для зоны rapidstream.ru
+dns_cloudflare_api_token = REPLACE_WITH_YOUR_CLOUDFLARE_API_TOKEN

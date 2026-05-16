@@ -1,0 +1,111 @@
+version: "3.8"
+
+# Конфигурация для запуска в GitHub Codespaces (или любой среде без публичного IP).
+# Вместо nginx-proxy + certbot используется Cloudflare Tunnel:
+#  - Cloudflare сам терминирует HTTPS на rapidstream.ru
+#  - cloudflared проксирует трафик внутрь docker-сети к frontend/backend/adminer
+#  - Не нужны открытые порты 80/443 наружу
+#
+# Запуск:
+#   1) Создайте туннель в Cloudflare Zero Trust -> Networks -> Tunnels
+#      и положите токен в .env как CLOUDFLARE_TUNNEL_TOKEN=...
+#   2) В настройках туннеля добавьте Public Hostnames:
+#        rapidstream.ru        -> http://frontend:80
+#        www.rapidstream.ru    -> http://backend:8000
+#        rapidstream.ru/admin  -> http://adminer:8080  (path matching)
+#   3) docker compose -f docker-compose.codespaces.yaml up --build
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+      MYSQL_USER: ${MYSQL_USER:-user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-user}", "-p${MYSQL_PASSWORD:-changeme}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --skip-log-bin
+      --log-slave-updates=OFF
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    volumes:
+      - photos_volume:/storage/photos
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${MYSQL_USER:-user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+      DB_NAME: ${MYSQL_DATABASE:-test}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+    container_name: frontend
+    volumes:
+      - photos_volume:/app/public/picture:ro
+    environment:
+      NEXT_PUBLIC_BASE_URL: https://rapidstream.ru
+      PORT: 80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: always
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    networks:
+      - app-network
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+      - backend
+      - adminer
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+  photos_volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/storage/photos
+
+networks:
+  app-network:
+    driver: bridge

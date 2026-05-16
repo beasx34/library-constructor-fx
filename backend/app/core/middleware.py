@@ -1,3 +1,4 @@
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from .config import settings
@@ -14,9 +15,17 @@ from ..api.v2 import (
 origins = [
     "http://localhost:3000",
     "http://26.0.197.27:3000",
-    "https://exhibitdes.ru",
+    "https://rapidstream.ru",
+    "https://www.rapidstream.ru",
     "https://192.168.0.101:3000"
 ]
+
+# Дополнительные origins, передаваемые через переменную окружения
+# ALLOWED_ORIGINS (через запятую). Удобно для GitHub Codespaces,
+# где публичный URL фронтенда зависит от имени codespace.
+_extra = os.getenv("ALLOWED_ORIGINS", "")
+if _extra:
+    origins.extend(o.strip() for o in _extra.split(",") if o.strip())
 
 def setup_middleware(app):
     app.add_middleware(

@@ -3,6 +3,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# NEXT_PUBLIC_* переменные у Next.js встраиваются в бандл во время `next build`,
+# поэтому пробрасываем URL бэкенда как build-arg.
+ARG NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 RUN npm run build
 
 FROM node:18-alpine AS prod
